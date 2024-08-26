@@ -1,0 +1,11 @@
+fixposition_driver_ros2:
+  ros__parameters:
+    fp_output:
+      formats: ["ODOMETRY", "ODOMSH", "LLH", "RAWIMU", "CORRIMU", "GPGGA", "GPZDA", "GPRMC", "TF"]
+      type: "tcp"
+      port: "21000"
+      ip: "192.168.3.199" # change to VRTK2's IP address in the network
+      rate: 200
+      reconnect_delay: 5.0 # wait time in [s] until retry connection
+    customer_input:
+      speed_topic: "/fixposition/speed"

@@ -1,0 +1,4 @@
+[console_scripts]
+can_output = can_communication.scripts.can_output:main
+pub_twist = can_communication.scripts.pub_twist:main
+

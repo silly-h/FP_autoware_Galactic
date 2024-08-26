@@ -1,0 +1,35 @@
+<launch>
+    <!-- 雷达驱动 -->
+    <include file="$(find-pkg-share rslidar_sdk)/launch/start.py" />
+    <!-- 转换为Autoware需要的 -->
+    <include file="$(find-pkg-share lidar_adaption)/launch/lidar_adaption_launch.py" >
+      <!-- LiDAR to base link -->
+      <arg name="transform_x" value="0.156300"/>
+      <arg name="transform_y" value="0.00"/>
+      <arg name="transform_z" value="0.710000"/>
+      <arg name="transform_roll" value="0.0"/>
+      <arg name="transform_pitch" value="0.0"/>
+      <arg name="transform_yaw" value="0.0"/>
+      <arg name="RadiusOutlierFilter" value="2.5"/>
+    </include>
+ 
+    <!-- 相机驱动 -->
+    <include file="$(find-pkg-share depthai_examples)/launch/rgb_publisher.launch.py">
+      <arg name="camera_model" value="OAK-D-LITE"/>
+    </include>
+
+    <!-- GNSS/IMU-->
+    <include file="$(find-pkg-share fixposition_driver_ros2)/launch/tcp.launch"/>
+    <!-- 启动Autoware -->
+    <include file="$(find-pkg-share autoware_launch)/launch/autoware.launch.xml">
+      <!-- 地图路径 -->
+      <arg name="map_path" value="/home/orin/autoware_map/fixposition-map-planning"/>
+      <!-- 车辆和传感器模型 -->
+      <arg name="vehicle_model" value="sample_vehicle"/>
+      <arg name="sensor_model" value="sample_sensor_kit"/>
+      <!-- 不使用仿真时间 -->
+      <arg name="use_sim_time" value="false"/>
+      <!-- 不使用Autoware自带的传感器驱动 -->
+      <arg name="launch_sensing_driver" value="false"/>
+    </include>
+</launch>

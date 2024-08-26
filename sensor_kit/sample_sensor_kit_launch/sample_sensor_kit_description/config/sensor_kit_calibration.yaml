@@ -1,0 +1,29 @@
+sensor_kit_base_link:
+  camera4/camera_link:
+    x: 0.088000
+    y: 0.0
+    z: -0.185500
+    roll: -1.570796
+    pitch: 0.000000
+    yaw: -1.570796
+  velodyne_base_link:
+    x: 0.0
+    y: 0.000000
+    z: 0.000000
+    roll: 0.000000
+    pitch: 0.000000
+    yaw: 0.000000
+  gnss_link:
+    x: 0.123033
+    y: -0.010602
+    z: -0.329710
+    roll: 0.008420
+    pitch: -0.004520
+    yaw: -0.06065
+  imu_link:
+    x: 0.123033
+    y: -0.010602
+    z: -0.329710
+    roll: 0.008420
+    pitch: -0.004520
+    yaw: -0.06065

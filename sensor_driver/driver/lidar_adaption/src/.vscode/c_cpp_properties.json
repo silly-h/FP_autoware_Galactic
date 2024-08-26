@@ -1,0 +1,33 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/orin/sensor_ws/install/fixposition_odometry_converter_ros2/include/**",
+        "/home/orin/sensor_ws/install/fixposition_driver_ros2/include/**",
+        "/home/orin/sensor_ws/install/depthai_bridge/include/**",
+        "/home/orin/sensor_ws/install/depthai_ros_msgs/include/**",
+        "/home/orin/lio_sam_ws/install/lio_sam/include/**",
+        "/opt/ros/galactic/include/**",
+        "/home/orin/sensor_ws/src/depthai-ros/depthai_bridge/include/**",
+        "/home/orin/sensor_ws/src/fixposition_driver/fixposition_driver_lib/include/**",
+        "/home/orin/sensor_ws/src/fixposition_driver/fixposition_driver_ros1/include/**",
+        "/home/orin/sensor_ws/src/fixposition_driver/fixposition_driver_ros2/include/**",
+        "/home/orin/sensor_ws/src/fixposition_driver/fixposition_odometry_converter_ros1/include/**",
+        "/home/orin/sensor_ws/src/fixposition_driver/fixposition_odometry_converter_ros2/include/**",
+        "/home/orin/sensor_ws/src/fixposition_gnss_tf/include/**",
+        "/home/orin/sensor_ws/src/lidar_adaption/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-arm64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

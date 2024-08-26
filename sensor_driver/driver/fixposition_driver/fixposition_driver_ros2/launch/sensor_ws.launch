@@ -1,0 +1,21 @@
+from launch import LaunchDescription
+from launch_ros.actions import Node
+from launch.actions import ExecuteProcess
+
+def generate_launch_description():
+    return LaunchDescription([
+        Node(
+            package='rslidar_sdk',
+            executable='start.py',
+            output='screen'
+        ),
+        Node(
+            package='rs_to_velodyne',
+            executable='rs_to_velodyne',
+            output='screen'
+        ),
+        ExecuteProcess(
+            cmd=['python3', 'path_to_your_python_script/autoware_lidar_time.py'],
+            output='screen'
+        ),
+    ])

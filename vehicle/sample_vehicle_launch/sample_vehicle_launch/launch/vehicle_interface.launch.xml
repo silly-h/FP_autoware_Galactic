@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <!-- <include file="$(find-pkg-share can_communication)/launch/can_communication_launch.py"/>
+  <include file="$(find-pkg-share scout_base)/launch/scout_base.launch.py"/> -->
+</launch>

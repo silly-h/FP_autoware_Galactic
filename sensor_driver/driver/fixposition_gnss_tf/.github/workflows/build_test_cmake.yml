@@ -1,0 +1,40 @@
+name: Build and Test with Plain CMake
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+        - {
+            name: "Ubuntu 20.04",
+            os: ubuntu-20.04,
+          }
+        - {
+            name: "Ubuntu 22.04",
+            os: ubuntu-22.04,
+          }
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Deps
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libeigen3-dev libyaml-cpp-dev libgtest-dev
+    - name: Build and test
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DBUILD_TESTING=ON
+        make
+        make test

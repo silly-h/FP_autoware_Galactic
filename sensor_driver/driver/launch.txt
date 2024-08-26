@@ -1,0 +1,60 @@
+LIDAR:
+python3 autoware_lidar_time.py
+source install/setup.bash
+ros2 launch rslidar_sdk start.py
+ros2 run rs_to_velodyne rs_to_velodyne 
+# ros2 run lidar_adaption lidar_adaption  ros2 launch lidar_adaption lidar_adaption_launch.py  //no use
+lidar final:
+source install/setup.bash
+ros2 launch odm_to_llh sensor_ws.launch.py 
+
+CAMERA:
+source install/setup.bash
+ros2 launch depthai_examples mobile_publisher.launch.py camera_model:=OAK-D-LITE
+ros2 launch depthai_examples rgb_publisher.launch.py camera_model:=OAK-D-LITE
+
+VRTK2:
+To launch the node in serial mode, run:
+ros2 launch fixposition_driver_ros2 serial.launch
+
+In TCP mode (Wi-Fi):
+ros2 launch fixposition_driver_ros2 tcp.launch
+In TCP mode (Ethernet):
+ros2 launch fixposition_driver_ros2 tcp.launch
+
+Building:
+colcon build --packages-skip fixposition_driver_ros1 fixposition_odometry_converter_ros1
+
+
+VRTK2 odom topic to llh
+source install/setup.bash 
+ros2 run odm_to_llh odm_to_llh 
+
+git:
+cd src 
+git add .
+git commit -m " "
+git push origin main
+
+topic:
+	sensor		topic						frame_id
+	lidar		/points					velodyne_link
+	imu		/fixposition/corr_imu		                imu_link
+	gps		/fixposition/nav_sat_fix	                gnss_link
+	camera		/color/image				        camera4/camera_link
+	
+
+how to config your own sensor
+VRTK2:
+1、将fixposition_driver_ros2/src/data_to_ros2.cpp中的33行与50行直接改为固定frame_id
+2、将fixposition_driver_ros2/src/fixpostion_driver_node.cpp中的45行与46行设置为对应的rostopic
+
+camera:
+deptahi_examples/ros2_src/rgb_publisher:49、52line
+
+lidar:
+rs_to_velodyne/src/rs_to_velodyne.cpp 97,231 line,configure your own topic and the frame id.
+
+fixposition_driver_ros2修改：
+由于发布了TF和TF_static导致与autoware的TF话题重合，所以删除掉：
+方法：fixposition_driver_ros2/src/fixpostion_driver_node 60,61,148-150,190,204 注释

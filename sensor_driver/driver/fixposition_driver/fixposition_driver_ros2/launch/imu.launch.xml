@@ -1,0 +1,10 @@
+<launch>
+  <arg name="launch_driver" default="true"/>
+
+  <group if="$(var launch_driver)">
+    <push-ros-namespace namespace="imu"/>
+    <!-- 直接启动imu和gps节点 -->
+    <include file="$(find-pkg-share fixposition_driver_ros2)/launch/tcp.launch"/>
+
+  </group>
+</launch>
