@@ -1,28 +1,90 @@
-# Autoware.Universe Setup and Customization for NVIDIA Jetson Orin
+# Autoware.Universe Deployment Issues and Solutions
 
-## Hardware Setup
-
-- Industrial PC: Plink's expansion board for NVIDIA Jetson series
+## Hardware Setup:
+- Industrial PC: NVIDIA AGX ORIN 64G with Plink's NVIDIA Jetson series expansion board
 - Camera: OAK-D-Lite
 - LiDAR: RS-LIDAR-16
 - GNSS/IMU: Fixposition VRTK2
 
-## Important Note
+## Software Environment:
+- Orin: JetPack 5.1.3/L4T 35.5.0
+- Linux: Ubuntu 20.04
+- ROS: ROS2-Humble
+- Architecture: Arm64
+- CUDA/cuDNN/TensorRT/OpenCV
+![](./images/1.jpg)
+## Important Notes:
 
-Autoware.Universe's currently maintained version is 22.04 Humble. This setup is for 20.04 Galactic, which has stopped source code updates. Some modifications to the source code are necessary for real vehicle testing.
+### 1. Industrial PC Issues:
+
+#### 1.1 JetPack 6.0 (Ubuntu 22.04 - Humble) Version Issues:
+a. Orin's built-in CUDA, cuDNN, and TensorRT components cannot be directly configured using the official automatic dependency installation commands.
+
+b. Source compilation requires opencv_contrib libraries, which can only be manually compiled and installed with OpenCV. This process easily conflicts with the pre-installed Autoware.Universe environment, and resolving conflicts often leads to missing critical components, preventing Autoware from starting normally. See: https://github.com/silly-h/Fp_autoware_humble
+
+c. Docker deployment gets stuck on the following command:
+```
+./setup-dev-env.sh -y docker
+```
+(Suspected to be caused by environment issues from compiling opencv_contrib on Orin)
+
+#### 1.2 JetPack 5.3 (Ubuntu 20.04 - Galactic) Version Issues:
+a. Orin's built-in CUDA, cuDNN, and TensorRT components cannot be directly configured using the official automatic dependency installation commands.
+
+b. The official Docker version cannot properly call CUDA and related components on Ubuntu 20.04, so only source compilation deployment is considered for the 20.04 environment.
+
+c. After source compilation on Orin, the official Autoware example simulation cannot plan paths normally. Solution reference in 3.2.4.
+
+d. After source compilation on Orin, the path planning function only works normally on the first startup. Subsequent startups in the same terminal fail to plan paths. This can only be resolved by running in a new terminal.
+
+### 2. Actual Vehicle Deployment Issues:
+
+We are using Autoware.Universe-galactic version for actual vehicle deployment. The following issues were encountered during code debugging:
+
+#### 2.1 Official Example Uses Multiple LiDAR Sensors:
+- File location: `/autoware_universe/autoware/src/sensor_kit/sample_sensor_kit_launch/launch/pointcloud_preprocessor.launch.py`
+- Original functionality: Multiple LiDAR point cloud stitching and output of corresponding topics and frame_id.
+- Need to change functionality to point cloud cropping or directly change the topic and frame_id output of the LiDAR ROS driver.
+
+#### 2.2 Inconsistent Input/Output Topics Between Nodes in Galactic Official Library:
+- Mismatch between output topics from `/sensor_kit/sample_sensor_kit_launch/launch/pointcloud_preprocessor.launch.py` and input topics for `/autoware.universe/launch/tier4_localization_launch /localization.launch.xml`.
+- These topics also inconsistent with the official pipeline.
+![](./images/2.jpg)
+- Related issue: https://github.com/orgs/autowarefoundation/discussions/5018#discussioncomment-10319794
+
+#### 2.3 Official MGRS Conversion Program Lacks Ubuntu 20.04 Version:
+- When converting maps in Ubuntu 22.04 VM, point cloud map Z values are lost, causing subsequent NDT node errors.
+![](./images/3.jpg)
+- Official guide: https://autowarefoundation.github.io/autoware-documentation/release-v1.0_beta/how-to-guides/integrating-autoware/creating-maps/converting-utm-to-mgrs-map/
+- Suspected missing dependencies: geographiclib-get-geoids egm2008-1
+- Related issue: https://github.com/orgs/autowarefoundation/discussions/5018#discussioncomment-10319794
+
+#### 2.4 NDT Point Cloud Matching Fails with Official MGRS Converted Maps:
+- Related issue: https://github.com/orgs/autowarefoundation/discussions/5128
+- Point cloud map: https://drive.google.com/file/d/1P2wLHIvb0h-m4jg02DweaZlUPNVYATNo/view?usp=drive_link
+- ROS2 bag: https://drive.google.com/file/d/1EHPwumBkZPWhBKyd227cgg51xsXqyM-Q/view?usp=drive_link
+
+#### 2.5 Low TF Publishing Frequency for base_link and map:
+- After normal NDT matching with local point cloud map, ekf_localizer's TF publishing node fails to work properly.
+- Corresponding node input messages check normal.
+- Point cloud map and ROS2 bag: https://drive.google.com/file/d/195AizfLdEGr24chBCs_HPLKDhs4ZEopS/view?usp=sharing
+- Related issue: https://github.com/orgs/autowarefoundation/discussions/5018#discussioncomment-10319794
 
 I. Flashing the Jetson Orin
 
 1. Prepare a virtual machine with Ubuntu 20.04, set the virtual machine space to 80G.
 2. Reference: https://gitee.com/plink718/plink-jetpack/tree/master/flashPatch/35.5.0/AGX-Orin/Y-C8
+![](./images/4.jpg)
    (Note: The patch file name is different from the given command, you need to modify it yourself)
 3. From here, to enter recovery mode, you must first connect the industrial computer's micro USB interface and then press and hold the REC button to enter recovery mode.
 4. After successful writing, the computer will restart and black screen for a while, please wait.
+![](./images/5.jpg)
 
 II. Mounting SSD to Home Directory
 
 Reference: https://blog.csdn.net/qq_33232152/article/details/140341819
-
+![](./images/6.jpg)
+![](./images/7.jpg)
 III. Changing System Sources
 
 1. Use FishROS to change system sources. Command line:
@@ -41,8 +103,10 @@ IV. Installing JetPack
 
 3. Dependency installation issues may occur:
    https://blog.csdn.net/m0_74116869/article/details/136608871
+![](./images/8.jpg)
 
 4. After the deep learning components like CUDA are installed, you can use jtop to click on the info at the bottom to check.
+![](./images/9.jpg)
 
 5. Jtop installation commands:
    ```
@@ -53,6 +117,17 @@ IV. Installing JetPack
    ```
 
 6. When configuring cuDNN, remember to modify the corresponding instructions according to the cuDNN version.
+![](./images/10.jpg)
+
+```
+sudo ln -sf libcudnn.so.8.6.0 libcudnn.so.8
+sudo ln -sf libcudnn_ops_train.so.8.6.0 libcudnn_ops_train.so.8
+sudo ln -sf libcudnn_ops_infer.so.8.6.0 libcudnn_ops_infer.so.8
+sudo ln -sf libcudnn_adv_train.so.8.6.0 libcudnn_adv_train.so.8
+sudo ln -sf libcudnn_adv_infer.so.8.6.0 libcudnn_adv_infer.so.8
+sudo ln -sf libcudnn_cnn_train.so.8.6.0 libcudnn_cnn_train.so.8
+sudo ln -sf libcudnn_cnn_infer.so.8.6.0 libcudnn_cnn_infer.so.8
+```
 
 V. Installing ROS 2 and VSCode
 
@@ -154,13 +229,14 @@ c. Please do not install ROS1 and ROS2 in the environment at the same time, it w
    git config --global https.proxy 127.0.0.1:7890
    ```
 
+![](./images/11.jpg)
    When turning off VPN, input:
    ```
    git config --global --unset http.proxy
    git config --global --unset https.proxy
    ```
 
-2. Installing dependencies
+1. Installing dependencies
    (1) Install git:
        ```
        sudo apt-get -y update
@@ -179,7 +255,8 @@ c. Please do not install ROS1 and ROS2 in the environment at the same time, it w
        cd autoware
        ./setup-dev-env.sh
        ```
-       This command will report an error, the following will be manually installed.
+      ![](./images/12.jpg)
+      This command will report an error, the following will be manually installed.
 
    (4) Install Ros2 dev tools:
        ```
@@ -220,6 +297,8 @@ c. Please do not install ROS1 and ROS2 in the environment at the same time, it w
        ```
 
        If error occurs:
+
+      ![](./images/13.jpg)
        ```
        # Manually simulate rosdep init
        sudo mkdir -p /etc/ros/rosdep/sources.list.d/
@@ -307,6 +386,8 @@ c. Please do not install ROS1 and ROS2 in the environment at the same time, it w
           ```
           If the above doesn't work, enter the autoware folder, open the autoware.repos file, add a proxy to each URL in the file, add https://ghproxy.com/, as shown below:
 
+   ![](./images/14.jpg)
+
    (2) Install Autoware ROS dependency packages
        ```
        pip install --upgrade --user setuptools==58.3.0
@@ -333,6 +414,8 @@ c. Please do not install ROS1 and ROS2 in the environment at the same time, it w
 
        a. If error occurs:
 
+      ![](./images/15.jpg)
+
           Solution:
           Add the following to line 3 of /autoware_universe/autoware/src/universe/autoware.universe/perception/traffic_light_classifier/CMakeLists.txt:
           ```
@@ -350,6 +433,9 @@ c. Please do not install ROS1 and ROS2 in the environment at the same time, it w
           ```
 
        b. If the map cannot be downloaded:
+
+      ![](./images/16.jpg)
+   
           Manually open the link to download
 
    (4) Run official example (initialization needs to wait for a while):
@@ -358,6 +444,7 @@ c. Please do not install ROS1 and ROS2 in the environment at the same time, it w
        source install/setup.bash
        ros2 launch autoware_launch planning_simulator.launch.xml map_path:=$HOME/autoware_map/sample-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit
        ```
+      ![](./images/17.jpg)
 
        The 20.04 galactic version has a problem with path planning, solution: https://blog.csdn.net/weixin_55800047/article/details/132146912
        ```
@@ -374,6 +461,8 @@ Modified repository address: https://github.com/silly-h/Fp_autoware_humble
 2. Sensor driver sources:
    (1) Camera driver reference: https://docs.luxonis.com/software/ros/depthai-ros/build/
 
+   ![](./images/18.jpg)
+   
        Installing according to the official website command is slow: you can use the command
        ```
        sudo apt install ros-<distro>-depthai-ros
@@ -392,13 +481,13 @@ Modified repository address: https://github.com/silly-h/Fp_autoware_humble
 
    (4) fixposition-VRTK2 driver source: https://github.com/fixposition/fixposition_driver
 
-3. Return to the /home/orin/autoware_universe/autoware folder for compilation:
+4. Return to the /home/orin/autoware_universe/autoware folder for compilation:
    ```
    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-skip fixposition_driver_ros1 fixposition_odometry_converter_ros1
    ```
    This command cannot be prefixed with sudo, as sudo is a different environment. If you encounter permission problems during compilation, it may be caused by the copying process. It is recommended to download the source code for compilation according to the above driver references and make corresponding modifications by comparing the copied files.
 
-4. How to modify the topics and frame_id of lidar, camera and RTK2 to specified topics and frame_id (this should correspond to the files in autoware_universe\autoware\src\sensor_kit\sample_sensor_kit_launch\sample_sensor_kit_description):
+5. How to modify the topics and frame_id of lidar, camera and RTK2 to specified topics and frame_id (this should correspond to the files in autoware_universe\autoware\src\sensor_kit\sample_sensor_kit_launch\sample_sensor_kit_description):
    sensor      topic                            frame_id
    lidar       /points                          velodyne_link
    imu         /fixposition/corr_imu            imu_link
@@ -512,13 +601,15 @@ https://app.diagrams.net/?lightbox=1#Uhttps%3A%2F%2Fautowarefoundation.github.io
    Change line3 in /autoware_universe/autoware/src/universe/autoware.universe/launch/tier4_localization_launch/localization.launch.xml to: /sensing/lidar/concatenated/pointcloud
 
 3. Modify input point cloud parameters to adapt to 16-line lidar
+![](./images/19.jpg)
+
    Modification location: /autoware_universe/autoware/src/universe/autoware.universe/launch/tier4_localization_launch/config
    Reason for modification: The lidar model used is RS-16 lidar
    voxel_grid_filter.param.yaml: Corresponding to voxel sampling, all set to 0.1.
    random_downsample_filter.param.yaml: Corresponding to the number of sampling points, set to 3000.
    crop_box_filter_measurement_range.param.yaml: Corresponding to how large a range of point clouds to retain, keep unchanged.
 
-4. Modify ndt_scan_matcher parameters
+5. Modify ndt_scan_matcher parameters
    Modification location: /autoware_universe/autoware/src/universe/autoware.universe/launch/tier4_localization_launch/config/ndt_scan_matcher.param.yaml
    Modifications:
    (1) resolution (ND voxel grid resolution)
@@ -532,7 +623,7 @@ https://app.diagrams.net/?lightbox=1#Uhttps%3A%2F%2Fautowarefoundation.github.io
    (5) num_threads
        Increasing the number of threads can speed up processing, especially when using high-performance computing environments, set to 8.
 
-5. Modify the lidar and IMU sensor messages input to ekf_localizer to ROS local time:
+6. Modify the lidar and IMU sensor messages input to ekf_localizer to ROS local time:
    Reason: In the ekf node, it determines the ekf by calculating the time difference between the system time and the time in the lidar header.stamp, but the lidar's current timing is inaccurate, consider using the system's time directly for subsequent topics.
    (1) Modification location: /autoware_universe/autoware/src/universe/autoware.universe/localization/ndt_scan_matcher/src/ndt_scan_matcher_core.cpp
        Modification: Change line318 from 
