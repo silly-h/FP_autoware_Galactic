@@ -652,3 +652,719 @@ https://app.diagrams.net/?lightbox=1#Uhttps%3A%2F%2Fautowarefoundation.github.io
        colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select gyro_odometer
        ```
 
+---
+
+# Autoware.Universe 部署问题及解决方案
+
+## 硬件设置
+- 工业PC：NVIDIA AGX ORIN 64G，配备 Plink 的 NVIDIA Jetson 系列扩展板
+- 相机：OAK-D-Lite
+- 激光雷达：RS-LIDAR-16
+- GNSS/IMU：Fixposition VRTK2
+
+## 软件环境
+- Orin：JetPack 5.1.3/L4T 35.5.0
+- Linux：Ubuntu 20.04
+- ROS：ROS2-Humble
+- 架构：Arm64
+- CUDA/cuDNN/TensorRT/OpenCV
+
+![](./images/1.jpg)
+
+## 重要注意事项
+
+### 1. 工业PC问题
+
+#### 1.1 JetPack 6.0（Ubuntu 22.04 - Humble）版本问题
+a. Orin 内置的 CUDA、cuDNN 和 TensorRT 组件无法通过官方自动依赖安装命令直接配置。
+
+b. 源码编译需要 opencv_contrib 库，这只能手动与 OpenCV 一起编译安装，此过程容易与预装的 Autoware.Universe 环境冲突，解决冲突时往往会导致缺少关键组件，Autoware 无法正常启动。详见：https://github.com/silly-h/Fp_autoware_humble
+
+c. Docker 部署卡在以下命令上：
+
+```bash
+./setup-dev-env.sh -y docker
+```
+
+（怀疑是因为在 Orin 上编译 opencv_contrib 导致的环境问题）
+
+#### 1.2 JetPack 5.3（Ubuntu 20.04 - Galactic）版本问题
+a. Orin 内置的 CUDA、cuDNN 和 TensorRT 组件无法通过官方自动依赖安装命令直接配置。
+
+b. 官方的 Docker 版本无法在 Ubuntu 20.04 上正常调用 CUDA 和相关组件，因此仅考虑在 20.04 环境中使用源码编译部署。
+
+c. 在 Orin 上进行源码编译后，官方的 Autoware 示例仿真无法正常规划路径。解决方案参考 3.2.4。
+
+d. 在 Orin 上源码编译后，路径规划功能仅在第一次启动时正常工作。在同一终端的后续启动中无法规划路径，只能通过在新终端中运行来解决。
+
+### 2. 实车部署问题
+
+我们在实车部署中使用 Autoware.Universe-galactic 版本，在代码调试过程中遇到以下问题：
+
+#### 2.1 官方示例使用多个 LiDAR 传感器
+- 文件位置：`/autoware_universe/autoware/src/sensor_kit/sample_sensor_kit_launch/launch/pointcloud_preprocessor.launch.py`
+- 原功能：多个 LiDAR 点云拼接及输出对应的 topics 和 frame_id。
+- 需更改为：点云裁剪，或者直接更改 LiDAR ROS 驱动的 topic 和 frame_id 输出。
+
+#### 2.2 Galactic 官方库中各节点输入/输出 topic 不一致
+- `/sensor_kit/sample_sensor_kit_launch/launch/pointcloud_preprocessor.launch.py` 中的输出 topics 与 `/autoware.universe/launch/tier4_localization_launch /localization.launch.xml` 的输入 topics 不一致。
+- 与官方 pipeline 也不一致。
+
+![](./images/2.jpg)
+
+- 相关问题：https://github.com/orgs/autowarefoundation/discussions/5018#discussioncomment-10319794
+
+#### 2.3 官方 MGRS 转换程序缺少 Ubuntu 20.04 版本
+- 在 Ubuntu 22.04 虚拟机中转换地图时，点云地图 Z 值丢失，导致后续 NDT 节点报错。
+
+![](./images/3.jpg)
+
+- 官方指南：https://autowarefoundation.github.io/autoware-documentation/release-v1.0_beta/how-to-guides/integrating-autoware/creating-maps/converting-utm-to-mgrs-map/
+- 怀疑缺少依赖：geographiclib-get-geoids egm2008-1
+- 相关问题：https://github.com/orgs/autowarefoundation/discussions/5018#discussioncomment-10319794
+
+#### 2.4 使用官方 MGRS 转换的地图时，NDT 点云匹配失败
+- 相关问题：https://github.com/orgs/autowarefoundation/discussions/5128
+- 点云地图：[点云地图下载链接](https://drive.google.com/file/d/1P2wLHIvb0h-m4jg02DweaZlUPNVYATNo/view?usp=drive_link)
+- ROS2 包：[ROS2 包下载链接](https://drive.google.com/file/d/1EHPwumBkZPWhBKyd227cgg51xsXqyM-Q/view?usp=drive_link)
+
+#### 2.5 base_link 和 map 的 TF 发布频率低
+- 使用本地点云地图正常进行 NDT 匹配后，ekf_localizer 的 TF 发布节点无法正常工作。
+- 对应节点输入消息检查正常。
+- 点云地图和 ROS2 包：[下载链接](https://drive.google.com/file/d/195AizfLdEGr24chBCs_HPLKDhs4ZEopS/view?usp=sharing)
+- 相关问题：https://github.com/orgs/autowarefoundation/discussions/5018#discussioncomment-10319794
+
+---
+
+### I. 刷写 Jetson Orin
+
+1. 准备一个 Ubuntu 20.04 的虚拟机，将虚拟机空间设置为 80G。
+2. 参考：[Jetson Orin 刷机补丁](https://gitee.com/plink718/plink-jetpack/tree/master/flashPatch/35.5.0/AGX-Orin/Y-C8)
+
+![](./images/4.jpg)
+
+   （注：补丁文件名与给定命令不同，需自行修改）
+3. 从这里进入恢复模式，必须先连接工业电脑的 micro USB 接口，然后按住 REC 键进入恢复模式。
+4. 写入成功后，计算机会重启并黑屏一会儿，请耐心等待。
+
+![](./images/5.jpg)
+
+### II. 挂载 SSD 到 Home 目录
+
+参考：[挂载 SSD 参考链接](https://blog.csdn.net/qq_33232152/article/details/140341819)
+
+![](./images/6.jpg)
+![](./images/7.jpg)
+
+### III. 更换系统源
+
+1. 使用 FishROS 更换系统源。命令行：
+   ```bash
+   wget http://fishros.com/install -O fishros && . fishros
+   ```
+2. 选择更换源命令，不要清除第三方源。
+
+### IV. 安装 JetPack
+
+1. Orin 必须使用刷机自带的 CUDA、cuDNN 和 tensorRT，否则各种 .so 符号链接文件找不到。如不能一键安装 JetPack，建议重新刷机。
+
+2. 若刷机后无法安装，参考：[JetPack 安装问题解决](https://blog.csdn.net/Black__Jacket/article/details/127736938)
+   （注：此类原因是安装 ROS 时使用 FishROS 清除了第三方源，请勿选择！）
+
+3. 依赖安装问题可能出现：[参考链接](https://blog.csdn.net/m0_74116869/article/details/136608871)
+
+![](./images/8.jpg)
+
+4. 安装深度学习组件（如 CUDA）后，可以使用 jtop 查看底部的信息。
+
+![](./images/9.jpg)
+
+5. Jtop 安装命令：
+   ```bash
+   sudo apt install python3-pip
+   sudo -H pip3 install -U jetson-stats
+   sudo systemctl restart jtop.service
+   reboot
+   ```
+
+6. 配置 cuDNN 时，记得根据 cuDNN 版本修改对应指令。
+   ```bash
+   sudo ln -sf libcudnn.so.8.6.0 libcudnn.so.8
+   sudo ln -sf libcudnn_ops_train.so.8.6.0 libcudnn_ops_train.so.8
+   sudo ln -sf libcudnn_ops_infer.so.8.6.0 libcudnn_ops_infer.so.8
+   sudo ln -sf libcudnn_adv_train.so.8.6.0 libcudnn_adv_train.so.8
+   sudo ln -sf libcudnn_adv_infer.so.8.6.0 libcudnn_adv_infer.so.8
+   sudo ln -sf libcudnn_cnn_train.so.8.6.0 libcudnn_cnn_train.so.8
+   sudo ln -sf libcudnn_cnn_infer.so.8.6.0 libcudnn_cnn_infer.so.8
+   ```
+
+### V. 安装 ROS 2 和 VSCode
+
+1. 使用 FishROS 一键安装 ROS 2 Galactic：
+   ```bash
+   wget http://fishros.com/install -O fishros && . fishros
+   ```
+   按照提示安装，在更换源的过程中不建议清除第三方源。
+
+2. 使用 FishROS 一键安装 VSCode：
+   ```bash
+   wget http://fishros.com/install -O fishros && . fishros
+   ```
+
+### VI. 开启 Orin 的 CAN 设置并设置自启动
+
+1. 安装 CAN 依赖：
+   ```bash
+   sudo apt-get install busybox can-utils
+   ```
+
+2. 测试 CAN 是否连接：
+   ```bash
+   sudo busybox devmem 0x0c303018 w 0xc458
+   sudo busybox devmem 0x0c303010 w 0xc400
+   sudo busybox devmem 0x0c303008 w 0xc458
+   sudo busybox devmem 0x0c303000 w 0xc400
+   sudo modprobe can
+   sudo modprobe can_raw
+   sudo modprobe can_dev
+   sudo modprobe mttcan
+   sudo ip link set can0 type can bitrate 500000
+   sudo ip link set can1 type can bitrate 500000
+   sudo ip link set up can0
+   sudo ip link set up can1
+   ```
+   测试 CAN0/CAN1，如终端输出显示连接（底盘应接 CAN1）：
+   ```bash
+   candump can0
+   candump can1
+   ```
+
+3. 在同级 final/can 目录下编写 sh 脚本实现自启动：
+
+   (1) 将脚本保存为 /usr/local/bin/setup_can.sh 并授予执行权限：
+       ```bash
+       sudo mv setup_can.sh /usr/local/bin/setup_can.sh
+       sudo chmod +x /usr/local/bin/setup_can.sh
+       ```
+
+   (2) 创建 systemd 服务文件：
+       ```bash
+       sudo gedit /etc/systemd/system/setup-can.service
+       ```
+
+   (3) 在此文件中添加以下内容：
+       ```bash
+       [Unit]
+       Description=Setup CAN interfaces
+       After=network.target
+
+       [Service]
+       Type=oneshot
+       ExecStart=/usr/local/bin/setup_can.sh
+       RemainAfterExit=yes
+
+       [Install]
+       WantedBy=multi-user.target
+       ```
+
+   (4) 保存并关闭文件。
+
+   (5) 重新加载 systemd 管理器配置：
+       ```bash
+       sudo systemctl daemon-reload
+       ```
+
+   (6) 启用并启动服务：
+       ```bash
+       sudo systemctl enable setup-can.service
+       sudo systemctl start setup-can.service
+       ```
+
+### VII. 在 Ubuntu 20.04 上从源代码安装 Autoware.Universe 并运行 ROS Galactic
+
+参考资料：
+- [主要参考](https://blog.csdn.net/Akaxi1/article/details/136286150)
+- [补充参考](https://blog.csdn.net/zardforever123/article/details/132029636)
+
+编译注意事项：
+a. 请务必将源代码放在 `/home` 目录中，否则会出现各种 rosdep 错误。
+b. 最终编译会有版本过低的警告错误，在 `CMakeLists.txt` 中进行修改，选择忽略即可。
+c. 请勿在同一环境中安装 ROS1 和 ROS2，这会导致不可预见的问题。
+
+1. 安装 VPN 以满足 git 需求，配置时更改网络设置为手动并设置：
+   ```bash
+   git config --global http.proxy 127.0.0.1:7890
+   git config --global https.proxy 127.0.0.1:7890
+   ```
+   关闭 VPN 时输入：
+   ```bash
+   git config --global --unset http.proxy
+   git config --global --unset https.proxy
+   ```
+
+2. 安装依赖
+
+   (1) 安装 git：
+       ```bash
+       sudo apt-get -y update
+       sudo apt-get -y install git
+       ```
+
+   (2) 本地克隆 Autoware：
+       ```bash
+       mkdir autoware_universe
+       cd autoware_universe/
+       git clone https://github.com/autowarefoundation/autoware.git -b galactic
+       ```
+
+   (3) 自动安装相关依赖：
+       ```bash
+       cd autoware
+       ./setup-dev-env.sh
+       ```
+       该命令可能会报错，下面将手动安装。
+
+   (4) 安装 ROS 2 开发工具：
+       ```bash
+       sudo apt install python3-testresources
+
+       sudo apt update && sudo apt install -y \
+         build-essential \
+         cmake \
+         git \
+         python3-colcon-common-extensions \
+         python3-flake8 \
+         python3-pip \
+         python3-pytest-cov \
+         python3-rosdep \
+         python3-setuptools \
+         python3-vcstool \
+         wget
+
+       python3 -m pip install -U \
+         flake8-blind-except \
+         flake8-builtins \
+         flake8-class-newline \
+         flake8-comprehensions \
+         flake8-deprecated \
+         flake8-docstrings \
+         flake8-import-order \
+         flake8-quotes \
+         pytest-repeat \
+         pytest-rerunfailures \
+         pytest \
+         setuptools
+       ```
+
+   (5) 安装 rosdep：
+       ```bash
+       sudo rosdep init
+       rosdep update
+       ```
+       如果出现错误，可以手动模拟 rosdep init：
+       ```bash
+       # 手动模拟 rosdep init
+       sudo mkdir -p /etc/ros/rosdep/sources.list.d/
+       sudo curl -o /etc/ros/rosdep/sources.list.d/20-default.list https://mirrors.tuna.tsinghua.edu.cn/github-raw/ros/rosdistro/master/rosdep/sources.list.d/20-default.list
+
+       # 更改 rosdep update 的源
+       export ROSDISTRO_INDEX_URL=https://mirrors.tuna.tsinghua.edu.cn/rosdistro/index-v4.yaml
+       # 下面的参数是为了不跳过 ROS 版本
+       rosdep update --include-eol-distros
+
+       # 在每次 rosdep update 之前添加这个环境变量
+       # 为了使这个设置持久化，可以将其写入 .bashrc 中，例如
+       echo 'export ROSDISTRO_INDEX_URL=https://mirrors.tuna.tsinghua.edu.cn/rosdistro/index-v4.yaml' >> ~/.bashrc
+       ```
+
+   (6) 安装 RMW_Implementation（选择 `amd64.env` 而非 `arm64.env`，因为 `arm64.env` 未指定 RMW_Implementation 版本）：
+       ```bash
+       cd autoware
+       source amd64.env
+       sudo apt update
+       rmw_implementation_dashed=$(eval sed -e "s/_/-/g" <<< "${rmw_implementation}")
+       sudo apt install ros-${rosdistro}-${rmw_implementation_dashed}
+
+       #（可选）你可以在 ~/.bashrc 文件中设置默认的 RMW 实现。
+       echo '' >> ~/.bashrc && echo "export RMW_IMPLEMENTATION=${rmw_implementation}" >> ~/.bashrc
+       ```
+
+   (7) 安装 pacmod（选择 `amd64.env` 而非 `arm64.env`，因为 `arm64.env` 未指定 pacmod 版本）：
+       ```bash
+       cd autoware
+       source amd64.env
+       sudo apt install apt-transport-https
+       sudo sh -c 'echo "deb [trusted=yes] https://s3.amazonaws.com/autonomoustuff-repo/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/autonomoustuff-public.list'
+       sudo apt update
+       sudo apt install ros-${rosdistro}-pacmod3
+       ```
+
+   (8) 安装 Autoware Core：
+       ```bash
+       pip3 install gdown
+       ```
+
+   (9) 安装 Autoware Universe 依赖：
+       ```bash
+       sudo apt install geographiclib-tools
+       sudo geographiclib-get-geoids egm2008-1
+       ```
+
+   (10) 安装 pre-commit 依赖：
+        ```bash
+        clang_format_version=14.0.6
+        pip3 install pre-commit clang-format==${clang_format_version}
+
+        # 安装 Golang（添加 Go PPA 以支持 shfmt）
+        sudo add-apt-repository ppa:longsleep/golang-backports
+        sudo apt install golang
+        ```
+
+3. Autoware 源代码安装
+
+   (1) 下载 Autoware.universe 源代码
+
+       a. 创建 src 文件夹
+          ```bash
+          cd autoware
+          mkdir src
+          ```
+
+       b. 修改 `autoware.repos` 文件
+          ```bash
+          sudo gedit autoware.repos
+          ```
+          在 `autoware.repos` 文件的第 28 行添加以下内容：
+          ```yaml
+          universe/external/open_planner:
+              type: git
+              url: https://github.com/ZATiTech/open_planner.git
+              version: main
+          ```
+          注意：开头对齐
+
+       c. 本地下载代码库
+          ```bash
+          vcs import src < autoware.repos
+          ```
+          如果以上无法工作，进入 `autoware` 文件夹，打开 `autoware.repos` 文件，在文件中的每个 URL 前添加代理，加上 `https://ghproxy.com/`，如下所示：
+
+   ![](./images/11.jpg)
+
+   (2) 安装 Autoware ROS 依赖包
+       ```bash
+       pip install --upgrade --user setuptools==58.3.0
+       rosdep update --include-eol-distros
+       source /opt/ros/galactic/setup.bash
+       rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
+       ```
+       （此命令在 `src` 目录中搜索 ROS 包，以确定需要安装哪些系统级依赖项。然后，通过操作系统的包管理器（例如 apt）来安装这些依赖项。）
+
+       如果出现错误：
+       ```
+       ERROR: onnx-graphsurgeon 0.3.12 requires onnx, which is not installed.
+       ERROR: flask 3.0.3 has requirement importlib-metadata>=3.6.0; python_version < "3.10", but you'll have importlib-metadata 1.5.0 which is incompatible.
+       ```
+
+       解决方案：
+       ```bash
+       pip install onnx
+       pip install --upgrade importlib-metadata
+       ```
+
+   (3) 编译
+       ```bash
+       colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+       ```
+
+       a. 如果出现错误：
+
+      ![](./images/15.jpg)
+
+          解决方案：
+          在 `/autoware_universe/autoware/src/universe/autoware.universe/perception/traffic_light_classifier/CMakeLists.txt` 的第 3 行添加：
+          ```cmake
+          set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+          ```
+          在 `/autoware_universe/autoware/src/universe/autoware.universe/perception/traffic_light_ssd_fine_detector/CMakeLists.txt` 的第 3 行添加相同内容。
+          在 `/autoware_universe/autoware/src/universe/autoware.universe/perception/tensorrt_yolo/CMakeLists.txt` 的第 3 行添加相同内容。
+          在 `/autoware_universe/autoware/src/universe/autoware.universe/perception/lidar_centerpoint/CMakeLists.txt` 的第 3 行添加：
+          ```cmake
+          add_compile_options(-Wno-error=deprecated-declarations)
+          ```
+          在 `/autoware_universe/autoware/src/universe/autoware.universe/common/tensorrt_common/CMakeLists.txt` 的第 3 行添加：
+          ```cmake
+          set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+          ```
+
+       b. 如果地图无法下载：
+
+      ![](./images/16.jpg)
+   
+          手动打开链接下载
+
+   (4) 运行官方示例（初始化需要等待一段时间）：
+       ```bash
+       cd autoware
+       source install/setup.bash
+       ros2 launch autoware_launch planning_simulator.launch.xml map_path:=$HOME/autoware_map/sample-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit
+       ```
+      ![](./images/17.jpg)
+
+       20.04 galactic 版本在路径规划上存在问题，解决方案：[路径规划问题解决](https://blog.csdn.net/weixin_55800047/article/details/132146912)
+       ```bash
+       echo 'export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1' >> ~/.bashrc
+       ```
+
+### VIII. 传感器 ROS 驱动编译与测试
+
+修改后的仓库地址：[GitHub仓库](https://github.com/silly-h/Fp_autoware_humble)
+
+1. 将 `sensor_driver` 文件复制到 `/home/orin/autoware_universe/autoware/src`
+   复制后，请根据第 2 节中对应的驱动指令安装依赖项（只需注意相机驱动依赖项，其他的可以直接复制编译）。
+
+2. 传感器驱动源码：
+   (1) 相机驱动参考：[相机驱动](https://docs.luxonis.com/software/ros/depthai-ros/build/)
+
+   ![](./images/18.jpg)
+
+       按照官网命令安装较慢：可以使用命令
+       ```bash
+       sudo apt install ros-<distro>-depthai-ros
+       ```
+       自动安装相应依赖后再进行源码编译
+
+   (2) 上凌底盘驱动参考：[上凌底盘驱动](https://github.com/agilexrobotics/scout_ros2/tree/humble)
+       测试命令：
+       ```bash
+       ros2 launch scout_base scout_base.launch.py
+       ros2 run teleop_twist_keyboard teleop_twist_keyboard
+       ```
+       测试底盘驱动时，需要打开遥控，通过键盘控制车
+
+   (3) rslidar 驱动参考：[rslidar 驱动](https://github.com/RoboSense-LiDAR/rslidar_sdk)
+
+   (4) fixposition-VRTK2 驱动源码：[fixposition-VRTK2 驱动](https://github.com/fixposition/fixposition_driver)
+
+4. 回到 `/home/orin/autoware_universe/autoware` 文件夹进行编译：
+   ```bash
+   colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-skip fixposition_driver_ros1 fixposition_odometry_converter_ros1
+   ```
+   此命令前不能加 `sudo`，因为 `sudo` 是不同的环境。如编译中遇到权限问题，可能是因为拷贝过程造成的，建议按照上述驱动参考下载源码进行编译，并通过对比已拷贝文件进行相应修改。
+
+5. 如何将 lidar、camera 和 RTK2 的 topics 和 frame_id 修改为指定的 topics 和 frame_id（对应在 `autoware_universe/autoware/src/sensor_kit/sample_sensor_kit_launch/sample_sensor_kit_description` 中的文件）：
+
+| 传感器 | topic                          | frame_id          |
+|--------|--------------------------------|-------------------|
+| lidar  | /points                        | velodyne_link     |
+| imu    | /fixposition/corr_imu          | imu_link          |
+| gps    | /fixposition/nav_sat_fix       | gnss_link         |
+| camera | /color/image                   | camera4/camera_link |
+
+   **VRTK2/IMU:**
+   1. 直接将 `fixposition_driver_ros2/src/data_to_ros2.cpp` 中的第 33 行和第 50 行修改为固定的 `frame_id`
+   2. 将 `fixposition_driver_ros2/src/fixpostion_driver_node.cpp` 中的第 45 行和第 46 行设置为相应的 `rostopic`
+   
+   fixposition_driver_ros2 修改：
+   由于 `TF` 和 `TF_static` 的发布会与 Autoware 的 `TF topics` 冲突，删除这些发布：
+   方法：注释掉 `fixposition_driver_ros2/src/fixpostion_driver_node` 中的第 60、61、148-150、190、204 行
+
+   **camera:**
+   `deptahi_examples/ros2_src/rgb_publisher`: 第 49、52 行
+
+   **lidar:**
+   `rs_to_velodyne/src/rs_to_velodyne.cpp` 第 97、231 行
+
+### IX. 创建传感器与车辆模型
+
+主要参考：[传感器与车辆模型创建](https://autowarefoundation.github.io/autoware-documentation/main/how-to-guides/)
+
+1. 创建传感器模型：
+   主要参考：[创建传感器模型](https://autowarefoundation.github.io/autoware-documentation/main/how-to-guides/integrating-autoware/creating-vehicle-and-sensor-model/creating-vehicle-model/)
+   主要修改位置：`/autoware_universe/autoware/src/sensor_kit`
+   此仓库地址：[GitHub仓库](https://github.com/silly-h/Fp_autoware_humble)
+
+   (1) `/autoware_universe/autoware/src/sensor_kit/sample_sensor_kit_launch/sample_sensor_kit_description`: 该文件主要用于设置各传感器之间的外参。
+       - **IMU 内参标定参考**：[IMU 内参标定](https://blog.csdn.net/er_dan_love/article/details/124370788)
+       - **IMU-Lidar 外参标定参考**：[IMU-Lidar 外参标定](https://blog.csdn.net/weixin_45205745/article/details/129462125)
+
+       上述标定程序可能不适用于 ROS2 Galactic，请使用虚拟机和 ROS2bag 转 ROS1bag 进行离线标定根据您的环境进行标定。
+
+       在 `sensor_kit_calibration.yaml` 部分，我们选择以 lidar 作为传感器套件的基坐标系，因此所有传感器之间的外参均基于 lidar 的转换。
+       
+       在 `sensors_calibration.yaml` 部分，设置了传感器套件到车辆坐标系的转换（手动测量）。
+
+   (2) `/autoware_universe/autoware/src/sensor_kit/sample_sensor_kit_launch/sample_sensor_kit_launch`: 此文件用于启动 `sensor_driver` 文件夹中的各传感器驱动。
+
+       由于 VRTK2 的 gnss 和 imu 一起启动，因此仅使用 `gnss.launch.xml` 文件来启动 gnss 和 imu 相关组件。此外，由于驱动冲突，我们注释掉了 `gnss.launch.xml` 中 `fixposition_driver_ros2` 的启动，选择在启动 `autoware.universe` 之前单独启动 `fixposition_driver_ros2`。`gnss.launch.xml` 仅负责启动关于 autoware 的 gnss 和 imu 相关组件。
+
+       `pointcloud_preprocessor.launch.py`: 此部分不同于 Autoware 的多激光雷达套件，我们仅使用单一激光雷达方案。因此我们使用点云裁剪功能替代原有的点云拼接功能，请根据实际传感器设备修改此部分。
+
+   (3) `/autoware_universe/autoware/src/param/autoware_individual_params/individual_params/config/default/sample_sensor_kit`: 在此文件夹中进行与 1.(1) 中相同的修改
+
+   (4) 编译该模块：
+       ```bash
+       colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select sample_sensor_kit_description sample_sensor_kit_launch individual_params
+       ```
+
+2. 创建车辆模型：
+   主要参考：[创建车辆模型](https://autowarefoundation.github.io/autoware-documentation/main/how-to-guides/integrating-autoware/creating-vehicle-and-sensor-model/creating-vehicle-model/)
+   主要修改位置：`/autoware_universe/autoware/src/vehicle`
+   此仓库地址：[GitHub仓库](https://github.com/silly-h/Fp_autoware_humble)
+
+   (1) `/autoware_universe/autoware/src/vehicle/sample_vehicle_launch/sample_vehicle_description/config/mirror.param.yaml`: 该文件主要用于点云裁剪。如果车辆没有后视镜，可以将这些值设置为 0.0
+
+   (2) `/autoware_universe/autoware/src/vehicle/sample_vehicle_launch/sample_vehicle_description/config/vehicle_info.param.yaml`:
+       该文件主要用于车辆物理尺寸参数，对应上凌车尺寸接口：[上凌车尺寸接口](https://agilexrobotics.gitbook.io/scout_mini/6-chan-pin-chi-cun-product-dimensions)
+
+   (3) `/autoware_universe/autoware/src/vehicle/sample_vehicle_launch/sample_vehicle_description/urdf/vehicle.xacro`: 该文件用于 rviz 中的车辆模型显示，可以在 rviz 中调整 rpy 和缩放比例，并根据实际情况进行调整。
+
+   (4) `/autoware_universe/autoware/src/vehicle/sample_vehicle_launch/sample_vehicle_launch/launch/vehicle_interface.launch.xml`: 在此文件中添加底盘通信程序
+       ```xml
+       <include file="$(find-pkg-share can_communication)/launch/can_communication_launch.py"/>
+       <include file="$(find-pkg-share scout_base)/launch/scout_base.launch.py"/>
+       ```
+       参考：[底盘通信程序](https://autowarefoundation.github.io/autoware-documentation/main/how-to-guides/integrating-autoware/creating-vehicle-interface-package/creating-vehicle-interface/)
+       
+       注：此底盘通信程序在 `/autoware_universe/autoware/src/sensor_driver/driver` 文件夹中可找到。此程序仅用于简单控制命令的上凌车，更多控制扩展请根据官方提供的接口进行编写。
+
+   (5) 编译该模块：
+       ```bash
+       colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select sample_vehicle_launch sample_vehicle_description
+       ```
+
+### X. LiDAR-SLAM 建图与 MGRS 点云地图创建
+
+主要参考：[点云地图创建](https://autowarefoundation.github.io/autoware-documentation/main/how-to-guides/integrating-autoware/creating-maps/)
+
+1. **LiDAR-SLAM 建图**：选择 lio-sam 进行点云地图构建，但 VRTK2 内置的 6 轴 IMU 与算法要求的 9 轴 IMU 不匹配。选择改进的建图算法：[改进的建图算法](https://github.com/YJZLuckyBoy/liorf/tree/liorf-ros2)
+
+   建图时连接 gnss 以构建基于东-北-上坐标系的本地 UTM 地图。如坐标系成功转换，则建图运行一段时间后原点坐标系会发生变化。在适配 liorf 算法到 VTRK2 驱动时，请注意修改 gps_status 部分的判断。修改后的代码仓库：[修改后的代码仓库](https://github.com/silly-h/liorf_ros2)
+
+2. **官方程序部署用于 UTM 到 MGRS 地图转换**：
+   参考：[UTM 到 MGRS 地图转换](https://autowarefoundation.github.io/autoware-documentation/main/how-to-guides/integrating-autoware/creating-maps/converting-utm-to-mgrs-map/)
+   
+   除教程配置外，还需修改 `src` 中的 `line48/line49`：
+   ```cpp
+   gnss_stat_utm.zone = 48; // 这设置了 UTM（通用横轴墨卡托）区域为 48。
+   gnss_stat_utm.northup = true; // 此参数表示使用北半球的 UTM 坐标系。
+   ```
+   请根据您的实际地区设置这些值。
+
+3. **基于创建的 MGRS 地图绘制 Lanelet2 地图**：
+   参考：[Lanelet2 地图绘制](https://autowarefoundation.github.io/autoware-documentation/main/how-to-guides/integrating-autoware/creating-maps/creating-vector-map/)
+   
+   地址：[Lanelet2 地图地址](https://account.tier4.jp/login?flow=ac5b0de7-dea9-41a7-add2-8c9e74df2f28)
+
+4. **创建本地地图文件**
+   在 `home/autoware_map` 文件夹下创建 `local map` 文件夹，包含四个文件，参考同级 `sample-map-planning` 文件夹
+   
+   导入之前创建的 `.osm` 和 `.pcd` 文件并重命名，在 `map_config.yaml` 中设置地图原点（建图起点，获取参考 `soft/map/first.py`），更改 `map_projector_info.yaml` 中的 `mgrs_grid`
+   
+   MGRS 地图号查询：[MGRS 地图号查询](https://mgrs-mapper.com/app)
+
+### XI. Autoware.Universe 源代码本地适配修改
+
+Autoware.Universe 整体 pipeline：[整体 pipeline 图示](https://app.diagrams.net/?lightbox=1#Uhttps%3A%2F%2Fautowarefoundation.github.io%2Fautoware-documentation%2Fmain%2Fdesign%2Fautoware-architecture%2Fnode-diagram%2Foverall-node-diagram-autoware-universe.drawio.svg#%7B%22pageId%22%3A%22T6t2FfeAp1iw48vGkmOz%22%7D)
+
+1. **修改 gnss_poser 包以适应 VRTK2 topic `fixposition/navsat_fix` 数据类型**
+
+   **原因**：VRTK2 在 gnss 信号丢失或差时可以继续输出 GPS 信号，但 topic `fixposition/navsat_fix` 中的 `status` 反映了实际 gnss 信号接收情况。
+   
+   **修改位置**：`/autoware_universe/autoware/src/universe/autoware.universe/sensing/gnss_poser/gnss_poser_core.cpp`
+   
+   **修改**：将第 67 行从 
+   ```cpp
+   const bool is_status_fixed = is_fixed(nav_sat_fix_msg_ptr->status);
+   ```
+   改为 
+   ```cpp
+   const bool is_status_fixed = true;
+   ```
+   （此修改需要 VRTK2 完全 fix 后再启动 autoware）
+   
+   **编译**： 
+   ```bash
+   colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select gnss_poser
+   ```
+
+2. **对应 Autoware.universe 的 localization 组件部分输入 topics**
+   
+   **修改**：将 `/autoware_universe/autoware/src/universe/autoware.universe/launch/tier4_localization_launch/localization.launch.xml` 的第 3 行修改为：
+   ```xml
+   /sensing/lidar/concatenated/pointcloud
+   ```
+
+3. **修改输入点云参数以适应 16 线激光雷达**
+
+   **修改位置**：`/autoware_universe/autoware/src/universe/autoware.universe/launch/tier4_localization_launch/config`
+   
+   **修改原因**：使用的激光雷达型号为 RS-16 lidar
+   
+   - `voxel_grid_filter.param.yaml`：对应体素采样，均设置为 0.1。
+   - `random_downsample_filter.param.yaml`：对应采样点数，设置为 3000。
+   - `crop_box_filter_measurement_range.param.yaml`：对应保留点云的范围大小，保持不变。
+
+4. **修改 ndt_scan_matcher 参数**
+
+   **修改位置**：`/autoware_universe/autoware/src/universe/autoware.universe/launch/tier4_localization_launch/config/ndt_scan_matcher.param.yaml`
+   
+   **修改内容**：
+   1. **resolution**（ND 体素网格分辨率）
+       - 该参数定义了 NDT 算法的体素网格分辨率。较小的分辨率（如 1.0 或 0.5）可能更适合低线激光雷达，修改为 0.5。
+   2. **max_iterations**
+       - 最大迭代次数决定了算法在给定数据集上迭代的次数。可以稍微增加此值以确保更好的收敛，设置为 80。
+   3. **trans_epsilon**
+       - 这是用于确定匹配是否收敛的阈值。减少此值可以使算法对细微变化更敏感，设置为 0.025。
+   4. **step_size**
+       - 该参数定义了牛顿法线性搜索的最大步长。减少步长可以使算法更加稳定，适用于激光雷达数据噪声较多的情况，修改为 0.025。
+   5. **num_threads**
+       - 增加线程数可以加快处理速度，尤其是在使用高性能计算环境时，设置为 8。
+
+5. **修改 ekf_localizer 中激光雷达和 IMU 传感器消息的输入为 ROS 本地时间**
+   
+   **原因**：在 `ekf` 节点中通过计算系统时间与激光雷达 `header.stamp` 中的时间差来确定 `ekf`，但激光雷达目前的时间测量不准确，考虑使用系统的时间直接作为后续 topics 的时间。
+   
+   1. **修改位置**：`/autoware_universe/autoware/src/universe/autoware.universe/localization/ndt_scan_matcher/src/ndt_scan_matcher_core.cpp`
+      
+      **修改**：将第 318 行从 
+      ```cpp
+      const rclcpp::Time sensor_ros_time = sensor_points_sensorTF_msg_ptr->header.stamp;
+      ```
+      改为
+      ```cpp
+      const rclcpp::Time sensor_ros_time = this->now();
+      ```
+      **编译**： 
+      ```bash
+      colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select ndt_scan_matcher
+      ```
+
+   2. **修改位置**：`/autoware_universe/autoware/src/universe/autoware.universe/localization/gyro_odometer/src/gyro_odometer_core.cpp`
+      
+      **修改**：
+      - 第 106 行将 
+      ```cpp
+      twist.header.stamp = imu_msg_ptr_->header.stamp;
+      ```
+      改为
+      ```cpp
+      twist.header.stamp = this->now();
+      ```
+      - 第 115 行将
+      ```cpp
+      twist_with_covariance.header.stamp = imu_msg_ptr_->header.stamp;
+      ```
+      改为
+      ```cpp
+      twist_with_covariance.header.stamp = this->now();
+      ```
+      - 第 69 行注释掉 `return;`
+      - 第 89 行注释掉 `return;`
+      
+      **编译**： 
+      ```bash
+      colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select gyro_odometer
+      ```
+
+
