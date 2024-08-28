@@ -573,12 +573,14 @@ Main reference: https://autowarefoundation.github.io/autoware-documentation/main
    gnss_stat_utm.zone = 48; This sets the UTM (Universal Transverse Mercator) zone to 48.
    gnss_stat_utm.northup = true; This parameter indicates using the northern hemisphere UTM coordinate system.
    Please set these values according to your actual region.
+   Note: The above environment requires Ubuntu 22.04 with ROS 2 Humble. Therefore, we have created a repository adapted for Ubuntu 20.04 with ROS 2 Galactic. The repository can be found at: https://github.com/silly-h/FP_pc_utm_to_mgrs_converter.git
+Please follow the instructions in the repository README for configuration.
 
-3. Drawing Lanelet2 map based on the created MGRS map:
+4. Drawing Lanelet2 map based on the created MGRS map:
    Reference: https://autowarefoundation.github.io/autoware-documentation/main/how-to-guides/integrating-autoware/creating-maps/creating-vector-map/
    Address: https://account.tier4.jp/login?flow=ac5b0de7-dea9-41a7-add2-8c9e74df2f28
 
-4. Creating local map files
+5. Creating local map files
    Create a local map folder under the home/autoware_map folder, which contains four files, refer to the sample-map-planning folder at the same level
    Import the previously created .osm and .pcd files and rename them, set the map origin in map_config.yaml (mapping starting point, get reference soft/map/first.py), and change mgrs_grid in map_projector_info.yaml
    MGRS map number query: https://mgrs-mapper.com/app
@@ -651,6 +653,32 @@ https://app.diagrams.net/?lightbox=1#Uhttps%3A%2F%2Fautowarefoundation.github.io
        ```
        colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select gyro_odometer
        ```
+Certainly! Here is the English version formatted for a README file:
+
+### XII. Real Vehicle Debugging
+
+1 Startup Commands:
+
+Due to the integration of the `fixposition_driver` and `can_communication` nodes into the Autoware launch process causing the processes to terminate, you need to start `fixposition_driver`, `can_communication`, and Autoware from three separate terminals. Use the following commands:
+
+a. **In the first terminal:**
+   ```bash
+   source install/setup.bash
+   ros2 launch can_communication can_communication_launch.py
+   ```
+
+b. **In the second terminal:**
+   ```bash
+   source install/setup.bash
+   ros2 launch fixposition_driver_ros2 tcp_ros2.launch
+   ```
+
+c. **In the third terminal:**
+   ```bash
+   source install/setup.bash
+   ros2 launch autoware_launch autoware.launch.xml map_path:=$HOME/autoware_map/fixposition-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit
+   ```
+
 
 ---
 
@@ -1250,13 +1278,16 @@ c. 请勿在同一环境中安装 ROS1 和 ROS2，这会导致不可预见的问
    gnss_stat_utm.northup = true; // 此参数表示使用北半球的 UTM 坐标系。
    ```
    请根据您的实际地区设置这些值。
+   注意：上述环境需求为 Ubuntu 22.04 和 ROS 2 Humble。为此，我们创建了一个适配 Ubuntu 20.04 和 ROS 2 Galactic 版本的仓库，地址为：https://github.com/silly-h/FP_pc_utm_to_mgrs_converter.git
+   请根据仓库中的 README 文件进行配置。
 
-3. **基于创建的 MGRS 地图绘制 Lanelet2 地图**：
+
+4. **基于创建的 MGRS 地图绘制 Lanelet2 地图**：
    参考：[Lanelet2 地图绘制](https://autowarefoundation.github.io/autoware-documentation/main/how-to-guides/integrating-autoware/creating-maps/creating-vector-map/)
    
    地址：[Lanelet2 地图地址](https://account.tier4.jp/login?flow=ac5b0de7-dea9-41a7-add2-8c9e74df2f28)
 
-4. **创建本地地图文件**
+5. **创建本地地图文件**
    在 `home/autoware_map` 文件夹下创建 `local map` 文件夹，包含四个文件，参考同级 `sample-map-planning` 文件夹
    
    导入之前创建的 `.osm` 和 `.pcd` 文件并重命名，在 `map_config.yaml` 中设置地图原点（建图起点，获取参考 `soft/map/first.py`），更改 `map_projector_info.yaml` 中的 `mgrs_grid`
@@ -1366,5 +1397,33 @@ Autoware.Universe 整体 pipeline：[整体 pipeline 图示](https://app.diagram
       ```bash
       colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-select gyro_odometer
       ```
+当然，以下是中文版本的 README 格式：
+
+---
+
+### XII. 实车调试
+
+1 启动命令：
+
+由于 `fixposition_driver` 和 `can_communication` 节点在集成到 Autoware 启动过程中会导致进程终止，因此需要分别在三个终端中启动 `fixposition_driver`、`can_communication` 和 Autoware。使用以下命令：
+
+a. **在第一个终端中：**
+   ```bash
+   source install/setup.bash
+   ros2 launch can_communication can_communication_launch.py
+   ```
+
+b. **在第二个终端中：**
+   ```bash
+   source install/setup.bash
+   ros2 launch fixposition_driver_ros2 tcp_ros2.launch
+   ```
+
+c. **在第三个终端中：**
+   ```bash
+   source install/setup.bash
+   ros2 launch autoware_launch autoware.launch.xml map_path:=$HOME/autoware_map/fixposition-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit
+   ```
+
 
 
