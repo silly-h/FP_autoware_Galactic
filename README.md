@@ -62,7 +62,7 @@ We are using Autoware.Universe-galactic version for actual vehicle deployment. T
 #### 2.4 NDT Point Cloud Matching Fails with Official MGRS Converted Maps:
 - Related issue: https://github.com/orgs/autowarefoundation/discussions/5128
 - Point cloud map: https://drive.google.com/file/d/1P2wLHIvb0h-m4jg02DweaZlUPNVYATNo/view?usp=drive_link
-- ROS2 bag: https://drive.google.com/file/d/1EHPwumBkZPWhBKyd227cgg51xsXqyM-Q/view?usp=drive_link
+- ROS2 bag: https://drive.google.com/file/d/1m2gsCMvvix3yjuFK7QXnn-DBbParNZY5/view?usp=drive_link
 
 #### 2.5 Low TF Publishing Frequency for base_link and map:
 - After normal NDT matching with local point cloud map, ekf_localizer's TF publishing node fails to work properly.
@@ -750,7 +750,7 @@ d. 在 Orin 上源码编译后，路径规划功能仅在第一次启动时正�
 #### 2.4 使用官方 MGRS 转换的地图时，NDT 点云匹配失败
 - 相关问题：https://github.com/orgs/autowarefoundation/discussions/5128
 - 点云地图：[点云地图下载链接](https://drive.google.com/file/d/1P2wLHIvb0h-m4jg02DweaZlUPNVYATNo/view?usp=drive_link)
-- ROS2 包：[ROS2 包下载链接](https://drive.google.com/file/d/1EHPwumBkZPWhBKyd227cgg51xsXqyM-Q/view?usp=drive_link)
+- ROS2 包：[ROS2 包下载链接](https://drive.google.com/file/d/1m2gsCMvvix3yjuFK7QXnn-DBbParNZY5/view?usp=drive_link)
 
 #### 2.5 base_link 和 map 的 TF 发布频率低
 - 使用本地点云地图正常进行 NDT 匹配后，ekf_localizer 的 TF 发布节点无法正常工作。
