@@ -673,7 +673,8 @@ c. **In the third terminal:**
    source install/setup.bash
    ros2 launch autoware_launch autoware.launch.xml map_path:=$HOME/autoware_map/fixposition-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit
    ```
-
+2、Using Fixposition VRTK2 with an MGRS point cloud map, it can quickly and accurately initialize the vehicle's position in indoor or GPS-weak environments.
+[Autoware Indoor Video](https://www.youtube.com/watch?v=UaJr3nnXWWM)
 
 ---
 
@@ -1416,6 +1417,7 @@ c. **在第三个终端中：**
    source install/setup.bash
    ros2 launch autoware_launch autoware.launch.xml map_path:=$HOME/autoware_map/fixposition-map-planning vehicle_model:=sample_vehicle sensor_model:=sample_sensor_kit
    ```
-
+2、使用fixpositon VRTK2在MGRS点云地图下，在室内等GPS较弱环境下能够快速准确初始化小车位置。
+[Autoware Indoor Video](https://www.youtube.com/watch?v=UaJr3nnXWWM)
 
 
