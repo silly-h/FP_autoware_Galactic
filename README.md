@@ -9,7 +9,7 @@
 ## Software Environment:
 - Orin: JetPack 5.1.3/L4T 35.5.0
 - Linux: Ubuntu 20.04
-- ROS: ROS2-Humble
+- ROS: ROS2-Galactic
 - Architecture: Arm64
 - CUDA/cuDNN/TensorRT/OpenCV
 ![](./images/1.jpg)
@@ -136,8 +136,13 @@ V. Installing ROS 2 and VSCode
    wget http://fishros.com/install -O fishros && . fishros
    ```
    Follow the instructions to install, it is not recommended to clear third-party sources during the source change process.
+   If you encounter issues with `ros2 bag`, try installing the necessary packages with the following command:
 
-2. Use FishROS to install VSCode in one click:
+   ```bash
+   sudo apt-get install ros-<distro>-ros2bag ros-<distro>-rosbag2*
+   ```
+
+3. Use FishROS to install VSCode in one click:
    ```
    wget http://fishros.com/install -O fishros && . fishros
    ```
@@ -613,17 +618,7 @@ https://app.diagrams.net/?lightbox=1#Uhttps%3A%2F%2Fautowarefoundation.github.io
 
 5. Modify ndt_scan_matcher parameters
    Modification location: /autoware_universe/autoware/src/universe/autoware.universe/launch/tier4_localization_launch/config/ndt_scan_matcher.param.yaml
-   Modifications:
-   (1) resolution (ND voxel grid resolution)
-       This parameter defines the voxel grid resolution of the NDT algorithm. A smaller resolution (such as 1.0 or 0.5) may be more suitable for low-line lidars, change to 0.5.
-   (2) max_iterations
-       The maximum number of iterations determines the number of times the algorithm iterates on a given dataset. You can slightly increase this value to ensure better convergence, set to 80.
-   (3) trans_epsilon
-       This is a threshold used to determine whether the matching has converged. Reducing this value can make the algorithm more sensitive to subtle changes, set to 0.025.
-   (4) step_size
-       This parameter defines the maximum step size for Newton's method linear search. Reducing the step size can make the algorithm more stable, suitable for when the lidar data has more noise, modify to 0.025.
-   (5) num_threads
-       Increasing the number of threads can speed up processing, especially when using high-performance computing environments, set to 8.
+   Please modify according to the actual LiDAR model and point cloud map parameters.
 
 6. Modify the lidar and IMU sensor messages input to ekf_localizer to ROS local time:
    Reason: In the ekf node, it determines the ekf by calculating the time difference between the system time and the time in the lidar header.stamp, but the lidar's current timing is inaccurate, consider using the system's time directly for subsequent topics.
@@ -693,7 +688,7 @@ c. **In the third terminal:**
 ## 软件环境
 - Orin：JetPack 5.1.3/L4T 35.5.0
 - Linux：Ubuntu 20.04
-- ROS：ROS2-Humble
+- ROS：ROS2-Galactic
 - 架构：Arm64
 - CUDA/cuDNN/TensorRT/OpenCV
 
@@ -833,8 +828,14 @@ d. 在 Orin 上源码编译后，路径规划功能仅在第一次启动时正�
    wget http://fishros.com/install -O fishros && . fishros
    ```
    按照提示安装，在更换源的过程中不建议清除第三方源。
+   
+   如果使用 `ros2 bag` 时遇到问题，请尝试使用以下命令安装必要的包：
+   
+   ```bash
+   sudo apt-get install ros-<distro>-ros2bag ros-<distro>-rosbag2*
+   ```
 
-2. 使用 FishROS 一键安装 VSCode：
+3. 使用 FishROS 一键安装 VSCode：
    ```bash
    wget http://fishros.com/install -O fishros && . fishros
    ```
@@ -1340,17 +1341,8 @@ Autoware.Universe 整体 pipeline：[整体 pipeline 图示](https://app.diagram
 
    **修改位置**：`/autoware_universe/autoware/src/universe/autoware.universe/launch/tier4_localization_launch/config/ndt_scan_matcher.param.yaml`
    
-   **修改内容**：
-   1. **resolution**（ND 体素网格分辨率）
-       - 该参数定义了 NDT 算法的体素网格分辨率。较小的分辨率（如 1.0 或 0.5）可能更适合低线激光雷达，修改为 0.5。
-   2. **max_iterations**
-       - 最大迭代次数决定了算法在给定数据集上迭代的次数。可以稍微增加此值以确保更好的收敛，设置为 80。
-   3. **trans_epsilon**
-       - 这是用于确定匹配是否收敛的阈值。减少此值可以使算法对细微变化更敏感，设置为 0.025。
-   4. **step_size**
-       - 该参数定义了牛顿法线性搜索的最大步长。减少步长可以使算法更加稳定，适用于激光雷达数据噪声较多的情况，修改为 0.025。
-   5. **num_threads**
-       - 增加线程数可以加快处理速度，尤其是在使用高性能计算环境时，设置为 8。
+   请根据实际激光雷达型号和点云地图参数进行修改。
+
 
 5. **修改 ekf_localizer 中激光雷达和 IMU 传感器消息的输入为 ROS 本地时间**
    
